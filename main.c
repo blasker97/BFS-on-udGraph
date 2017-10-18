@@ -22,7 +22,6 @@ struct node
 {
     int vertex;
     int distance;
-    int discover;
     struct node* next;
 };
 
@@ -67,10 +66,10 @@ int main(int argc, char** argv) {
     
     unGraph = parse_getline(fp, unGraph);
     
-    int distance[unGraph->numVertices+1];
+    int* distance = malloc(sizeof(int) * unGraph->numVertices);
     int i;
     
-    printGraph(unGraph);
+    //printGraph(unGraph);
     bfs(unGraph, distance);
   
 //    for(i=1;i<unGraph->numVertices+1; i++){
@@ -88,14 +87,18 @@ int main(int argc, char** argv) {
     if(!fp)
         exit(OUTPUT_FILE_FAILED_TO_OPEN);
     
-    for(i=1;i<unGraph->numVertices+1; i++){
+    for(i=0;i<unGraph->numVertices; i++){
         fprintf(fp,"%d\n", distance[i]);
    }
     
     if (fclose(fp) == EOF)
         exit(OUTPUT_FILE_FAILED_TO_CLOSE);
     
+    free(distance);
     
+    for(i = 0; i<unGraph->numVertices; i++){
+        free(unGraph->adjLists[i]);
+    }
     
 
     return (EXIT_SUCCESS);
@@ -110,7 +113,7 @@ struct Graph* parse_getline(FILE* fp, struct Graph* unGraph) {
 	while ((linelen=getline(&line, &nbytes, fp)) != -1) {
 		line[linelen-1] = '\0'; //removing the newline and adding the NULL character
                       
-                if(i == 0){
+                if(j == 0){
                     for(i=0; i<linelen-1; i++){
                         if(isdigit(line[i])==0){
                             exit(PARSING_ERROR_INVALID_FORMAT);
@@ -118,6 +121,7 @@ struct Graph* parse_getline(FILE* fp, struct Graph* unGraph) {
                         else{
                             if(k==0){
                             numOfVertex += line[i] - '0';
+                            k++;
                             }
                             else{
                                 numOfVertex *= 10;
@@ -129,13 +133,45 @@ struct Graph* parse_getline(FILE* fp, struct Graph* unGraph) {
                     j++;
                 }
                 else{
+                    
+                    numOfSrc = 0;
+                    numOfDest = 0;
+                    
                     if(line[0] != '('  || line[linelen-2] != ')'){
                         exit(PARSING_ERROR_INVALID_FORMAT);
                     }
+                    i = 1;
+                    k = 0;
+                    while(line[i]!=','){
+                        if(k==0){
+                            numOfSrc += line[i] - '0';
+                            k++;
+                        }
+                        else{
+                            numOfSrc *= 10;
+                            numOfSrc += line[i] - '0';
+                        }
+                        i++;
+                    }
+                    i++;
+                    k = 0;
+                    while(line[i]!=')'){
+                        if(k==0){
+                            numOfDest += line[i] - '0';
+                            k++;
+                        }
+                        else{
+                            numOfDest *= 10;
+                            numOfDest += line[i] - '0';    
+                        }
+                        i++;
+                    }
                     
+                    if(numOfSrc == 0 || numOfDest == 0)
+                        exit(PARSING_ERROR_INVALID_FORMAT);
                     
-                    numOfSrc = line[1] - '0';
-                    numOfDest = line[3] - '0';
+                    if(numOfSrc > numOfVertex || numOfDest > numOfVertex)
+                        exit(INTEGER_IS_NOT_A_VERTEX);
                    
                     addEdge(unGraph,numOfSrc,numOfDest);
                 }
@@ -146,6 +182,7 @@ struct Graph* parse_getline(FILE* fp, struct Graph* unGraph) {
         return unGraph;
 }
 
+// creates node and int
 struct node* createNode(int v)
 {
     struct node* newNode = malloc(sizeof(struct node));
@@ -171,24 +208,25 @@ struct Graph* createGraph(int vertices)
  
 void addEdge(struct Graph* graph, int src, int dest)
 {
+    //takes adjlist location and subtracts by 1 so the 0 position is not skipped
     // Add edge from src to dest
     struct node* newNode = createNode(dest);
-    newNode->next = graph->adjLists[src];
-    graph->adjLists[src] = newNode;
+    newNode->next = graph->adjLists[src-1];
+    graph->adjLists[src-1] = newNode;
  
     // Add edge from dest to src
     newNode = createNode(src);
-    newNode->next = graph->adjLists[dest];
-    graph->adjLists[dest] = newNode;
+    newNode->next = graph->adjLists[dest-1];
+    graph->adjLists[dest-1] = newNode;
 }
  
 void printGraph(struct Graph* graph)
 {
     int v;
-    for (v = 1; v < graph->numVertices+1; v++)
+    for (v = 0; v < graph->numVertices; v++)
     {
         struct node* temp = graph->adjLists[v];
-        printf("\n Adjacency list of vertex %d\n ", v);
+        printf("\n Adjacency list of vertex %d\n ", v+1);
         while (temp)
         {
             printf("%d -> ", temp->vertex);
@@ -198,6 +236,7 @@ void printGraph(struct Graph* graph)
     }
 }
 
+//queue referenced from Queues in C geeksforgeeks
 struct Queue* createQueue(unsigned capacity)
 {
     struct Queue* queue = (struct Queue*) malloc(sizeof(struct Queue));
@@ -234,14 +273,13 @@ void bfs(struct Graph* graph, int distance[]){
     struct Queue* queue;
     int i;
     int u;
-    int u2;
   
     
-    for(i=1; i<graph->numVertices + 1; i++){
+    for(i=0; i<graph->numVertices; i++){
         distance[i] = -1;
     }
     
-    distance[1] = 0;
+    distance[0] = 0;
     
     queue = createQueue(graph->numVertices);
     enqueue(queue, 1);
@@ -250,11 +288,10 @@ void bfs(struct Graph* graph, int distance[]){
         u = dequeue(queue);
         
         
-        struct node* temp = graph->adjLists[u];
-        
+        struct node* temp = graph->adjLists[u-1];
         while(temp){
-            if(distance[temp->vertex] == -1){
-                distance[temp->vertex]=distance[u]+1;
+            if(distance[(temp->vertex) - 1] == -1){
+                distance[(temp->vertex) - 1]=distance[u - 1]+1;
                 enqueue(queue, temp->vertex);
             }
             temp = temp->next;
